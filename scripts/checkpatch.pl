@@ -5007,10 +5007,11 @@ sub process {
 			}
 		}
 
-# Check for misused memsets
+# Check for misused memsets then check for memset(foo, 0x00|0xff, ETH_ALEN)
+# calls that could be eth_zero_addr(foo)|eth_broadcast_addr(foo)
 		if ($^V && $^V ge 5.10.0 &&
 		    defined $stat &&
-		    $stat =~ /^\+(?:.*?)\bmemset\s*\(\s*$FuncArg\s*,\s*$FuncArg\s*\,\s*$FuncArg\s*\)/s) {
+		    $stat =~ /^\+(?:\s*$Ident\s*=)?\s*memset\s*\(\s*$FuncArg\s*,\s*$FuncArg\s*\,\s*$FuncArg\s*\)/s) {
 
 			my $ms_addr = $2;
 			my $ms_val = $7;
@@ -5022,6 +5023,18 @@ sub process {
 			} elsif ($ms_size =~ /^(0x|)1$/i) {
 				WARN("MEMSET",
 				     "single byte memset is suspicious. Swapped 2nd/3rd argument?\n" . "$here\n$stat\n");
+			} elsif ($ms_val =~ /^(?:0x)?0+$/i &&
+				 $ms_size =~ /^ETH_ALEN$/ &&
+				 WARN("PREFER_ETH_ADDR",
+				     "Prefer eth_zero_addr() over memset() if the second address is 0\n" . $herecurr) &&
+				 $fix) {
+				$fixed[$fixlinenr] =~ s/\bmemset\s*\(\s*\Q$ms_addr\E\s*,\s*\Q$ms_val\E\s*,\s*ETH_ALEN\s*\)/eth_zero_addr($ms_addr)/;
+			} elsif ($ms_val =~ /^(?:0xff|255)$/i &&
+				 $ms_size =~ /^ETH_ALEN$/ &&
+				 WARN("PREFER_ETH_ADDR",
+				      "Prefer eth_broadcast_addr() over memset() if the second address is 0xff\n" . $herecurr) &&
+				 $fix) {
+				$fixed[$fixlinenr] =~ s/\bmemset\s*\(\s*\Q$ms_addr\E\s*,\s*\Q$ms_val\E\s*,\s*ETH_ALEN\s*\)/eth_broadcast_addr($ms_addr)/;
 			}
 		}
 
