@@ -124,6 +124,14 @@ config VIDEO_V4L2_SUBDEV_API
 
 source "drivers/media/v4l2-core/Kconfig"
 
+##
+#first module
+##
+config FIRST
+	bool "first_module"
+
+source "drivers/media/first_module/Kconfig"
+
 #
 # DVB Core
 #	Only enables if one of DTV is selected

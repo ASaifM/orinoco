@@ -1,0 +1,6 @@
+config FIRST_MODULE
+	tristate "First module"
+	depends on FIRST
+	default n
+	--- help ---
+	First module made with Kconfig
