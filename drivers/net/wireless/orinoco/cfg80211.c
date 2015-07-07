@@ -11,31 +11,6 @@
 //#include "hif-ops.h"
 //#include "testmode.h"
 
-
-/* hif layer decides what suspend mode to use */
-/* not there yet */ 
-static int __orinoco_cfg80211_suspend(struct wiphy *wiphy,
-				 struct cfg80211_wowlan *wow)
-{
-	struct orinoco_private *priv = wiphy_priv(wiphy);
-
-	return 0;
-}
-
-
-int orinoco_cfg80211_resume(struct orinoco_private *priv)
-{
-	return 0;
-}
-
-static int __orinoco_cfg80211_resume(struct wiphy *wiphy)
-{
-	struct orinoco_private *priv = wiphy_priv(wiphy);
-	int err;
-
-	return 0;
-}
-
 static bool orinoco_is_p2p_ie(const u8 *pos)
 {
 	return 0;
@@ -160,9 +135,10 @@ static int orinoco_cfg80211_set_txe_config(struct wiphy *wiphy,
 added to the ops struct
 */
 static struct cfg80211_ops orinoco_cfg80211_ops = {
-//	.suspend = ,
-//	.resume = ,
-// 	set_wakeup =,
+/*	.suspend = ,
+	.resume = ,
+ 	set_wakeup =,
+	.join_ibss = orinoco_cfg80211_join_ibss,*/
 
 	
 };
@@ -178,9 +154,6 @@ static void orinoco_cfg80211_reg_notify(struct wiphy *wiphy,
 	struct orinoco_private *priv = wiphy_priv(wiphy);
 }
 
-
-
-
 struct wireless_dev *orinoco_interface_add(struct orinoco_private *priv, const char *name,
 					  unsigned char name_assign_type,
 					  enum nl80211_iftype type,
@@ -190,6 +163,8 @@ struct wireless_dev *orinoco_interface_add(struct orinoco_private *priv, const c
 	return NULL;
 }
 
+
+/* logic is that of orinoco_init in main.c */
 int orinoco_cfg80211_init(struct orinoco_private *priv)
 {
 	struct wiphy *wiphy;
@@ -205,18 +180,124 @@ int orinoco_cfg80211_init(struct orinoco_private *priv)
 
 
 	return 0;
+
+
+	struct device *dev = priv->dev;
+	struct wiphy *wiphy = priv_to_wiphy(priv);
+	struct hermes *hw = &priv->hw;
+	int err = 0;
+
+	/* No need to lock, the hw_unavailable flag is already set in
+	 * alloc_orinocodev() */
+	priv->nicbuf_size = IEEE80211_MAX_FRAME_LEN + ETH_HLEN;
+
+	/* Initialize the firmware */
+	err = hw->ops->init(hw);
+	if (err != 0) {
+		dev_err(dev, "Failed to initialize firmware (err = %d)\n",
+			err);
+		goto out;
+	}
+
+	err = determine_fw_capabilities(priv, wiphy->fw_version,
+					sizeof(wiphy->fw_version),
+					&wiphy->hw_version);
+	if (err != 0) {
+		dev_err(dev, "Incompatible firmware, aborting\n");
+		goto out;
+	}
+
+	if (priv->do_fw_download) {
+#ifdef CONFIG_HERMES_CACHE_FW_ON_INIT
+		orinoco_cache_fw(priv, 0);
+#endif
+
+		err = orinoco_download(priv);
+		if (err)
+			priv->do_fw_download = 0;
+
+		/* Check firmware version again */
+		err = determine_fw_capabilities(priv, wiphy->fw_version,
+						sizeof(wiphy->fw_version),
+						&wiphy->hw_version);
+		if (err != 0) {
+			dev_err(dev, "Incompatible firmware, aborting\n");
+			goto out;
+		}
+	}
+
+	if (priv->has_port3)
+		dev_info(dev, "Ad-hoc demo mode supported\n");
+	if (priv->has_ibss)
+		dev_info(dev, "IEEE standard IBSS ad-hoc mode supported\n");
+	if (priv->has_wep)
+		dev_info(dev, "WEP supported, %s-bit key\n",
+			 priv->has_big_wep ? "104" : "40");
+	if (priv->has_wpa) {
+		dev_info(dev, "WPA-PSK supported\n");
+		if (orinoco_mic_init(priv)) {
+			dev_err(dev, "Failed to setup MIC crypto algorithm. "
+				"Disabling WPA support\n");
+			priv->has_wpa = 0;
+		}
+	}
+
+	err = orinoco_hw_read_card_settings(priv, wiphy->perm_addr);
+	if (err)
+		goto out;
+
+	err = orinoco_hw_allocate_fid(priv);
+	if (err) {
+		dev_err(dev, "Failed to allocate NIC buffer!\n");
+		goto out;
+	}
+
+	/* Set up the default configuration */
+	priv->iw_mode = NL80211_IFTYPE_STATION;
+	/* By default use IEEE/IBSS ad-hoc mode if we have it */
+	priv->prefer_port3 = priv->has_port3 && (!priv->has_ibss);
+	set_port_type(priv);
+	priv->channel = 0; /* use firmware default */
+
+	priv->promiscuous = 0;
+	priv->encode_alg = ORINOCO_ALG_NONE;
+	priv->tx_key = 0;
+	priv->wpa_enabled = 0;
+	priv->tkip_cm_active = 0;
+	priv->key_mgmt = 0;
+	priv->wpa_ie_len = 0;
+	priv->wpa_ie = NULL;
+
+	if (orinoco_wiphy_register(wiphy)) {
+		err = -ENODEV;
+		goto out;
+	}
+
+	/* Make the hardware available, as long as it hasn't been
+	 * removed elsewhere (e.g. by PCMCIA hot unplug) */
+	orinoco_lock_irq(priv);
+	priv->hw_unavailable--;
+	orinoco_unlock_irq(priv);
+
+	dev_dbg(dev, "Ready\n");
+
+ out:
+	return err;
 }
 
 void orinoco_cfg80211_cleanup(struct orinoco_private *priv)
 {
 	struct wiphy *wiphy = priv_to_wiphy(priv);
+
 	wiphy_unregister(wiphy);
 }
 
+/* will borrow code from alloc_orinocodev */
 struct orinoco_private *orinoco_cfg80211_create(void)
 {
 	struct orinoco_private *priv;
 	struct wiphy *wiphy;
+	int err;
 
 	/* create a new wiphy for use with cfg80211 */
 	wiphy = wiphy_new(&orinoco_cfg80211_ops, sizeof(struct orinoco_private));
@@ -226,8 +307,9 @@ struct orinoco_private *orinoco_cfg80211_create(void)
 		return NULL;
 	}
 
-	priv = wiphy_priv(wiphy);
+	priv = wiphy_priv(wiphy)
 	priv->wiphy = wiphy;
+	err = orinoco_cfg80211_init(priv);
 
 	return priv;
 }
