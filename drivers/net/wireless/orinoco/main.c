@@ -97,7 +97,6 @@
 #include "scan.h"
 #include "mic.h"
 #include "fw.h"
-#include "wext.h"
 #include "cfg.h"
 #include "main.h"
 
@@ -2266,7 +2265,6 @@ int orinoco_if_add(struct orinoco_private *priv,
 	/* Setup / override net_device fields */
 	dev->ieee80211_ptr = wdev;
 	dev->watchdog_timeo = HZ; /* 1 second timeout */
-	dev->wireless_handlers = &orinoco_handler_def;
 #ifdef WIRELESS_SPY
 	dev->wireless_data = &priv->wireless_data;
 #endif
