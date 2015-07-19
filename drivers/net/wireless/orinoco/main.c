@@ -97,9 +97,9 @@
 #include "scan.h"
 #include "mic.h"
 #include "fw.h"
-#include "cfg.h"
+//#include "cfg.h"
 #include "main.h"
-
+#include "cfg80211.h"
 #include "orinoco.h"
 
 /********************************************************************/
