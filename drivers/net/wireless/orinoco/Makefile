@@ -1,7 +1,7 @@
 #
 # Makefile for the orinoco wireless device drivers.
 #
-orinoco-objs := main.o fw.o hw.o mic.o scan.o hermes_dld.o hermes.o
+orinoco-objs :=  main.o fw.o hw.o cfg80211.o mic.o scan.o hermes_dld.o hermes.o 
 
 obj-$(CONFIG_HERMES)		+= orinoco.o
 obj-$(CONFIG_PCMCIA_HERMES)	+= orinoco_cs.o

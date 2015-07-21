@@ -67,6 +67,7 @@
 
 #include "mic.h"
 #include "orinoco.h"
+#include "cfg80211.h"
 
 #ifndef URB_ASYNC_UNLINK
 #define URB_ASYNC_UNLINK 0
@@ -1687,8 +1688,8 @@ static int ezusb_probe(struct usb_interface *interface,
 	}
 
 	/* Initialise the main driver */
-	if (orinoco_init(priv) != 0) {
-		err("orinoco_init() failed\n");
+	if (orinoco_cfg80211_init(priv) != 0) {
+		err("orinoco_cfg80211_init() failed\n");
 		goto error;
 	}
 

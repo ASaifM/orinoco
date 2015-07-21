@@ -93,8 +93,10 @@
 #include <linux/pci.h>
 #include <pcmcia/cisreg.h>
 
+#include "cfg80211.h"
 #include "orinoco.h"
 #include "orinoco_pci.h"
+
 
 #define COR_OFFSET	(0x3e0)	/* COR attribute offset of Prism2 PC card */
 #define COR_VALUE	(COR_LEVEL_REQ | COR_FUNC_ENA) /* Enable PC card with interrupt in level trigger */
@@ -253,9 +255,9 @@ static int orinoco_plx_init_one(struct pci_dev *pdev,
 		goto fail;
 	}
 
-	err = orinoco_init(priv);
+	err = orinoco_cfg80211_init(priv);
 	if (err) {
-		printk(KERN_ERR PFX "orinoco_init() failed\n");
+		printk(KERN_ERR PFX "orinoco_cfg80211_init() failed\n");
 		goto fail;
 	}
 

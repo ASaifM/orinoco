@@ -20,6 +20,7 @@
 #include <linux/delay.h>
 #include <asm/pmac_feature.h>
 
+#include "cfg80211.h"
 #include "orinoco.h"
 
 #define AIRPORT_IO_LEN	(0x1000)	/* one page */
@@ -204,8 +205,8 @@ airport_attach(struct macio_dev *mdev, const struct of_device_id *match)
 	card->irq_requested = 1;
 
 	/* Initialise the main driver */
-	if (orinoco_init(priv) != 0) {
-		printk(KERN_ERR PFX "orinoco_init() failed\n");
+	if (orinoco_cfg80211_init(priv) != 0) {
+		printk(KERN_ERR PFX "orinoco_cfg80211_init() failed\n");
 		goto failed;
 	}
 

@@ -29,6 +29,7 @@
 #include <pcmcia/ds.h>
 
 #include "orinoco.h"
+#include "cfg80211.h"
 
 /********************************************************************/
 /* Module stuff							    */
@@ -237,8 +238,8 @@ spectrum_cs_config(struct pcmcia_device *link)
 		goto failed;
 
 	/* Initialise the main driver */
-	if (orinoco_init(priv) != 0) {
-		printk(KERN_ERR PFX "orinoco_init() failed\n");
+	if (orinoco_cfg80211_init(priv) != 0) {
+		printk(KERN_ERR PFX "orinoco_cfg80211_init() failed\n");
 		goto failed;
 	}
 

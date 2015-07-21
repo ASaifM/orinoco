@@ -52,6 +52,7 @@
 
 #include "orinoco.h"
 #include "orinoco_pci.h"
+#include "cfg80211.h"
 
 /* Offset of the COR register of the PCI card */
 #define HERMES_PCI_COR		(0x26)
@@ -164,9 +165,9 @@ static int orinoco_pci_init_one(struct pci_dev *pdev,
 		goto fail;
 	}
 
-	err = orinoco_init(priv);
+	err = orinoco_cfg80211_init(priv);
 	if (err) {
-		printk(KERN_ERR PFX "orinoco_init() failed\n");
+		printk(KERN_ERR PFX "orinoco_cfg80211_init() failed\n");
 		goto fail;
 	}
 

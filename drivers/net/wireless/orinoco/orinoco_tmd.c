@@ -49,6 +49,7 @@
 
 #include "orinoco.h"
 #include "orinoco_pci.h"
+#include "cfg80211.h"
 
 #define COR_VALUE	(COR_LEVEL_REQ | COR_FUNC_ENA) /* Enable PC card with interrupt in level trigger */
 #define COR_RESET     (0x80)	/* reset bit in the COR register */
@@ -150,9 +151,9 @@ static int orinoco_tmd_init_one(struct pci_dev *pdev,
 		goto fail;
 	}
 
-	err = orinoco_init(priv);
+	err = orinoco_cfg80211_init(priv);
 	if (err) {
-		printk(KERN_ERR PFX "orinoco_init() failed\n");
+		printk(KERN_ERR PFX "orinoco_cfg80211_init() failed\n");
 		goto fail;
 	}
 

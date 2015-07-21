@@ -2020,116 +2020,6 @@ static void orinoco_unregister_pm_notifier(struct orinoco_private *priv)
 #define orinoco_unregister_pm_notifier(priv) do { } while (0)
 #endif
 
-/********************************************************************/
-/* Initialization                                                   */
-/********************************************************************/
-
-int orinoco_init(struct orinoco_private *priv)
-{
-	struct device *dev = priv->dev;
-	struct wiphy *wiphy = priv_to_wiphy(priv);
-	struct hermes *hw = &priv->hw;
-	int err = 0;
-
-	/* No need to lock, the hw_unavailable flag is already set in
-	 * alloc_orinocodev() */
-	priv->nicbuf_size = IEEE80211_MAX_FRAME_LEN + ETH_HLEN;
-
-	/* Initialize the firmware */
-	err = hw->ops->init(hw);
-	if (err != 0) {
-		dev_err(dev, "Failed to initialize firmware (err = %d)\n",
-			err);
-		goto out;
-	}
-
-	err = determine_fw_capabilities(priv, wiphy->fw_version,
-					sizeof(wiphy->fw_version),
-					&wiphy->hw_version);
-	if (err != 0) {
-		dev_err(dev, "Incompatible firmware, aborting\n");
-		goto out;
-	}
-
-	if (priv->do_fw_download) {
-#ifdef CONFIG_HERMES_CACHE_FW_ON_INIT
-		orinoco_cache_fw(priv, 0);
-#endif
-
-		err = orinoco_download(priv);
-		if (err)
-			priv->do_fw_download = 0;
-
-		/* Check firmware version again */
-		err = determine_fw_capabilities(priv, wiphy->fw_version,
-						sizeof(wiphy->fw_version),
-						&wiphy->hw_version);
-		if (err != 0) {
-			dev_err(dev, "Incompatible firmware, aborting\n");
-			goto out;
-		}
-	}
-
-	if (priv->has_port3)
-		dev_info(dev, "Ad-hoc demo mode supported\n");
-	if (priv->has_ibss)
-		dev_info(dev, "IEEE standard IBSS ad-hoc mode supported\n");
-	if (priv->has_wep)
-		dev_info(dev, "WEP supported, %s-bit key\n",
-			 priv->has_big_wep ? "104" : "40");
-	if (priv->has_wpa) {
-		dev_info(dev, "WPA-PSK supported\n");
-		if (orinoco_mic_init(priv)) {
-			dev_err(dev, "Failed to setup MIC crypto algorithm. "
-				"Disabling WPA support\n");
-			priv->has_wpa = 0;
-		}
-	}
-
-	err = orinoco_hw_read_card_settings(priv, wiphy->perm_addr);
-	if (err)
-		goto out;
-
-	err = orinoco_hw_allocate_fid(priv);
-	if (err) {
-		dev_err(dev, "Failed to allocate NIC buffer!\n");
-		goto out;
-	}
-
-	/* Set up the default configuration */
-	priv->iw_mode = NL80211_IFTYPE_STATION;
-	/* By default use IEEE/IBSS ad-hoc mode if we have it */
-	priv->prefer_port3 = priv->has_port3 && (!priv->has_ibss);
-	set_port_type(priv);
-	priv->channel = 0; /* use firmware default */
-
-	priv->promiscuous = 0;
-	priv->encode_alg = ORINOCO_ALG_NONE;
-	priv->tx_key = 0;
-	priv->wpa_enabled = 0;
-	priv->tkip_cm_active = 0;
-	priv->key_mgmt = 0;
-	priv->wpa_ie_len = 0;
-	priv->wpa_ie = NULL;
-
-	if (orinoco_wiphy_register(wiphy)) {
-		err = -ENODEV;
-		goto out;
-	}
-
-	/* Make the hardware available, as long as it hasn't been
-	 * removed elsewhere (e.g. by PCMCIA hot unplug) */
-	orinoco_lock_irq(priv);
-	priv->hw_unavailable--;
-	orinoco_unlock_irq(priv);
-
-	dev_dbg(dev, "Ready\n");
-
- out:
-	return err;
-}
-EXPORT_SYMBOL(orinoco_init);
-
 static const struct net_device_ops orinoco_netdev_ops = {
 	.ndo_open		= orinoco_open,
 	.ndo_stop		= orinoco_stop,
@@ -2180,7 +2070,7 @@ struct orinoco_private
 	 * NOTE: We only support a single virtual interface
 	 *       but this may change when monitor mode is added
 	 */
-	wiphy = wiphy_new(&orinoco_cfg_ops,
+	wiphy = wiphy_new(&orinoco_cfg80211_ops,
 			  sizeof(struct orinoco_private) + sizeof_card);
 	if (!wiphy)
 		return NULL;
@@ -2206,9 +2096,9 @@ struct orinoco_private
 
 	spin_lock_init(&priv->lock);
 	priv->open = 0;
-	priv->hw_unavailable = 1; /* orinoco_init() must clear this
-				   * before anything else touches the
-				   * hardware */
+	priv->hw_unavailable = 1; /* orinoco_cfg80211_init must clear
+				   * this before anything else touches
+				   * the hardware */
 	INIT_WORK(&priv->reset_work, orinoco_reset);
 	INIT_WORK(&priv->join_work, orinoco_join_ap);
 	INIT_WORK(&priv->wevent_work, orinoco_send_wevents);
