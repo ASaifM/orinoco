@@ -30,6 +30,8 @@ static struct ieee80211_rate orinoco_rates[] = {
 static const void * const orinoco_wiphy_privid = &orinoco_wiphy_privid;
 
 /* Called after orinoco_private is allocated. */
+/* This function simply provides the wiphy with a unique id and 
+associates it with the device used by the driver's private struct */
 void orinoco_wiphy_init(struct wiphy *wiphy)
 {
 	struct orinoco_private *priv = wiphy_priv(wiphy);
@@ -45,10 +47,14 @@ int orinoco_wiphy_register(struct wiphy *wiphy)
 	struct orinoco_private *priv = wiphy_priv(wiphy);
 	int i, channels = 0;
 
-	if (priv->firmware_type == FIRMWARE_TYPE_AGERE)
+	if (priv->firmware_type == FIRMWARE_TYPE_AGERE){
 		wiphy->max_scan_ssids = 1;
+		printk(KERN_DEBUG "we have an agere here \n");
+	}
 	else
 		wiphy->max_scan_ssids = 0;
+
+	printk(KERN_DEBUG "firmware is %d \n", priv->firmware_type);
 
 	wiphy->interface_modes = BIT(NL80211_IFTYPE_STATION);
 
@@ -108,6 +114,34 @@ int orinoco_wiphy_register(struct wiphy *wiphy)
 
 static const u8 bcast_addr[ETH_ALEN] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
 
+static int orinoco_scan(struct wiphy *wiphy,
+			struct cfg80211_scan_request *request)
+{
+	struct orinoco_private *priv = wiphy_priv(wiphy);
+	int err;
+
+	if (!request)
+		return -EINVAL;
+
+	if (request->n_channels > 0)
+		printk (KERN_DEBUG "No. of channels is %d", request->n_channels);
+
+	if (priv->scan_request && priv->scan_request != request)
+		return -EBUSY;
+
+	priv->scan_request = request;
+
+	err = orinoco_hw_trigger_scan(priv, request->ssids);
+	/* On error the we aren't processing the request */
+	if (err)
+		priv->scan_request = NULL;
+
+	return err;
+}
+
+
+
+
 /* As every function is implemented, it will be 
 added to the ops struct
 */
@@ -116,8 +150,8 @@ static struct cfg80211_ops orinoco_cfg80211_ops = {
 	.resume = ,
  	set_wakeup =,
 	.join_ibss = orinoco_cfg80211_join_ibss,*/
-
-	
+	.scan = orinoco_scan,
+		
 };
 
 int orinoco_cfg80211_init(struct orinoco_private *priv)
