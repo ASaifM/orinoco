@@ -49,7 +49,6 @@
  * TODO
  *	o Handle de-encapsulation within network layer, provide 802.11
  *	  headers (patch from Thomas 'Dent' Mirlacher)
- *	o Fix possible races in SPY handling.
  *	o Disconnect wireless extensions from fundamental configuration.
  *	o (maybe) Software WEP support (patch from Stano Meduna).
  *	o (maybe) Use multiple Tx buffers - driver handling queue
@@ -97,7 +96,6 @@
 #include "scan.h"
 #include "mic.h"
 #include "fw.h"
-#include "wext.h"
 #include "cfg.h"
 #include "main.h"
 
@@ -698,40 +696,6 @@ static inline int is_ethersnap(void *_hdr)
 		&& ((hdr[5] == 0x00) || (hdr[5] == 0xf8));
 }
 
-static inline void orinoco_spy_gather(struct net_device *dev, u_char *mac,
-				      int level, int noise)
-{
-	struct iw_quality wstats;
-	wstats.level = level - 0x95;
-	wstats.noise = noise - 0x95;
-	wstats.qual = (level > noise) ? (level - noise) : 0;
-	wstats.updated = IW_QUAL_ALL_UPDATED | IW_QUAL_DBM;
-	/* Update spy records */
-	wireless_spy_update(dev, mac, &wstats);
-}
-
-static void orinoco_stat_gather(struct net_device *dev,
-				struct sk_buff *skb,
-				struct hermes_rx_descriptor *desc)
-{
-	struct orinoco_private *priv = ndev_priv(dev);
-
-	/* Using spy support with lots of Rx packets, like in an
-	 * infrastructure (AP), will really slow down everything, because
-	 * the MAC address must be compared to each entry of the spy list.
-	 * If the user really asks for it (set some address in the
-	 * spy list), we do it, but he will pay the price.
-	 * Note that to get here, you need both WIRELESS_SPY
-	 * compiled in AND some addresses in the list !!!
-	 */
-	/* Note : gcc will optimise the whole section away if
-	 * WIRELESS_SPY is not defined... - Jean II */
-	if (SPY_NUMBER(priv)) {
-		orinoco_spy_gather(dev, skb_mac_header(skb) + ETH_ALEN,
-				   desc->signal, desc->silence);
-	}
-}
-
 /*
  * orinoco_rx_monitor - handle received monitor frames.
  *
@@ -1061,9 +1025,6 @@ static void orinoco_rx(struct net_device *dev,
 	skb->ip_summed = CHECKSUM_NONE;
 	if (fc & IEEE80211_FCTL_TODS)
 		skb->pkt_type = PACKET_OTHERHOST;
-
-	/* Process the wireless stats if needed */
-	orinoco_stat_gather(dev, skb, desc);
 
 	/* Pass the packet to the networking stack */
 	netif_rx(skb);
@@ -2197,10 +2158,6 @@ struct orinoco_private
 
 	orinoco_wiphy_init(wiphy);
 
-#ifdef WIRELESS_SPY
-	priv->wireless_data.spy_data = &priv->spy_data;
-#endif
-
 	/* Set up default callbacks */
 	priv->hard_reset = hard_reset;
 	priv->stop_fw = stop_fw;
@@ -2266,10 +2223,7 @@ int orinoco_if_add(struct orinoco_private *priv,
 	/* Setup / override net_device fields */
 	dev->ieee80211_ptr = wdev;
 	dev->watchdog_timeo = HZ; /* 1 second timeout */
-	dev->wireless_handlers = &orinoco_handler_def;
-#ifdef WIRELESS_SPY
-	dev->wireless_data = &priv->wireless_data;
-#endif
+
 	/* Default to standard ops if not set */
 	if (ops)
 		dev->netdev_ops = ops;

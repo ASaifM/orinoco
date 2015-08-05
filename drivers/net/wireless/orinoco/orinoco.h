@@ -21,8 +21,6 @@
 /* To enable debug messages */
 /*#define ORINOCO_DEBUG		3*/
 
-#define WIRELESS_SPY		/* enable iwspy support */
-
 #define MAX_SCAN_LEN		4096
 
 #define ORINOCO_SEQ_LEN		8
@@ -133,10 +131,6 @@ struct orinoco_private {
 	u16 preamble;
 	u16 short_retry_limit, long_retry_limit;
 	u16 retry_lifetime;
-#ifdef WIRELESS_SPY
-	struct iw_spy_data spy_data; /* iwspy support */
-	struct iw_public_data	wireless_data;
-#endif
 
 	/* Configuration dependent variables */
 	int port_type, createibss;

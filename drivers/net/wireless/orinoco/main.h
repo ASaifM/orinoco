@@ -8,19 +8,6 @@
 #include <linux/ieee80211.h>
 #include "orinoco.h"
 
-/********************************************************************/
-/* Compile time configuration and compatibility stuff               */
-/********************************************************************/
-
-/* We do this this way to avoid ifdefs in the actual code */
-#ifdef WIRELESS_SPY
-#define SPY_NUMBER(priv)	(priv->spy_data.spy_number)
-#else
-#define SPY_NUMBER(priv)	0
-#endif /* WIRELESS_SPY */
-
-/********************************************************************/
-
 /* Export module parameter */
 extern int force_monitor;
 
