@@ -283,8 +283,47 @@ static int orinoco_set_wiphy_params(struct wiphy *wiphy, u32 changed)
 	return err;
 }
 
+static int orinoco_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
+				   struct cfg80211_connect_params *sme)
+{
+	struct orinoco_private priv = wiphy_priv(wiphy);
+	struct cfg80211_bss *bss;
+
+	/*test if card is trying to connect or already connected. If so
+	 *return error code. orinoco_private supports that?
+	 * Need to check and modify struct accordingly.
+         */
+
+	/*New note: orinoco_private needs to change drastically! */
+
+	/* If we don't have a valid ssid, we shouldn't connect! */
+	if (!sme->ssid) {
+		printk(KERN_ERR "Invalid ssid\n");
+		return -EOPNOTSUPP;
+	}
+
+	if (sme->bssid && is_zero_ether_addr(sme->bssid)){
+		printk(KERN_ERR "Zero address bssid! \n");
+		return -EINVAL;
+	}
+
+	memset(priv->bssid, 0, sizeof(priv->bssid));
+	priv->ssid_len = sme->ssid_len;
+	memcpy(priv->ssid, sme->ssid, sme->ssid_len);
+
+	memset(priv->desired_bssid, 0, sizeof(vif->desired_bssid));
+	if (sme->bssid && !is_broadcast_ether_addr(sme->bssid))
+		memcpy(priv->desired_bssid, sme->bssid, sizeof(priv->desired_bssid));
+
+
+
+
+	return 0;
+}
+
 const struct cfg80211_ops orinoco_cfg_ops = {
 	.change_virtual_intf = orinoco_change_vif,
+	.connect = orinoco_cfg80211_connect,
 	.set_monitor_channel = orinoco_set_monitor_channel,
 	.scan = orinoco_scan,
 	.set_wiphy_params = orinoco_set_wiphy_params,
