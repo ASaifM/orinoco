@@ -53,6 +53,12 @@ enum fwtype {
 	FIRMWARE_TYPE_SYMBOL
 };
 
+enum sme_state {
+	SME_DISCONNECTED,
+	SME_CONNECTING,
+	SME_CONNECTED
+};
+
 struct firmware;
 
 struct orinoco_private {
@@ -123,7 +129,7 @@ struct orinoco_private {
 	char nick[IW_ESSID_MAX_SIZE + 1];
 	char desired_essid[IW_ESSID_MAX_SIZE + 1];
 	char desired_bssid[ETH_ALEN];
-	u8 bssid[ETH_ALEN]; /* better to have it as u8? */
+	u8 ssid[ETH_ALEN]; /* better to have it as u8? */
 	int ssid_len;
 	int bssid_fixed;
 	u16 frag_thresh, mwo_robust;
@@ -143,6 +149,9 @@ struct orinoco_private {
 	struct work_struct process_scan;
 	struct list_head scan_list;
 	spinlock_t scan_lock; /* protects the scan list */
+
+	/* Connection status */
+	enum sme_state sme_state;
 
 	/* WPA support */
 	u8 *wpa_ie;

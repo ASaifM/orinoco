@@ -2,6 +2,7 @@
  *
  * See copyright notice in main.c
  */
+#include <linux/etherdevice.h>
 #include <linux/ieee80211.h>
 #include <net/cfg80211.h>
 #include "hw.h"
@@ -286,18 +287,21 @@ static int orinoco_set_wiphy_params(struct wiphy *wiphy, u32 changed)
 static int orinoco_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 				   struct cfg80211_connect_params *sme)
 {
-	struct orinoco_private priv = wiphy_priv(wiphy);
+	struct orinoco_private *priv = wiphy_priv(wiphy);
 	struct cfg80211_bss *bss;
 
 	/*test if card is trying to connect or already connected. If so
 	 *return error code. orinoco_private supports that?
 	 * Need to check and modify struct accordingly.
          */
-
+	if (priv->sme_state == SME_CONNECTING || priv->sme_state == SME_CONNECTED){
+		printk(KERN_ERR "Card already established a connection or trying to! \n");
+		return -EBUSY;
+	}
 	/*New note: orinoco_private needs to change drastically! */
 
 	/* If we don't have a valid ssid, we shouldn't connect! */
-	if (!sme->ssid) {
+	if (!sme->ssid){
 		printk(KERN_ERR "Invalid ssid\n");
 		return -EOPNOTSUPP;
 	}
@@ -307,16 +311,20 @@ static int orinoco_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 		return -EINVAL;
 	}
 
-	memset(priv->bssid, 0, sizeof(priv->bssid));
+	memset(priv->ssid, 0, sizeof(priv->ssid));
 	priv->ssid_len = sme->ssid_len;
 	memcpy(priv->ssid, sme->ssid, sme->ssid_len);
 
-	memset(priv->desired_bssid, 0, sizeof(vif->desired_bssid));
+	memset(priv->desired_bssid, 0, sizeof(priv->desired_bssid));
 	if (sme->bssid && !is_broadcast_ether_addr(sme->bssid))
 		memcpy(priv->desired_bssid, sme->bssid, sizeof(priv->desired_bssid));
 
 
 
+	/* need to set the authenticatin type
+	 * What are the supported authentication
+	 * methods by Orinoco?
+	 */
 
 	return 0;
 }
