@@ -127,8 +127,8 @@ struct orinoco_private {
 
 	int bitratemode;
 	char nick[IW_ESSID_MAX_SIZE + 1];
-	char desired_essid[IW_ESSID_MAX_SIZE + 1];
-	char desired_bssid[ETH_ALEN];
+	u8 desired_essid[IW_ESSID_MAX_SIZE + 1];
+	u8 desired_bssid[ETH_ALEN];
 	u8 ssid[ETH_ALEN]; /* better to have it as u8? */
 	int ssid_len;
 	int bssid_fixed;
@@ -152,6 +152,8 @@ struct orinoco_private {
 
 	/* Connection status */
 	enum sme_state sme_state;
+
+	/* authentication type */
 
 	/* WPA support */
 	u8 *wpa_ie;

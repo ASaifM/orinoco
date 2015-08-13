@@ -284,12 +284,51 @@ static int orinoco_set_wiphy_params(struct wiphy *wiphy, u32 changed)
 	return err;
 }
 
+
+static int orinoco_set_wpa_version(struct orinoco_private *priv, enum nl80211_wpa_versions wpa_version){
+
+	if (!wpa_version) {
+		priv->encode_alg = ORINOCO_ALG_NONE;
+	} else if (wpa_version & NL80211_WPA_VERSION_1) {
+		priv->encode_alg = ORINOCO_ALG_TKIP;
+	} else {
+		printk(KERN_ERR "Orinoco supports TKIP only. \n");
+		return -ENOTSUPP;
+	}
+
+	return 0;
+}
+
+
+static int orinoco_set_authentication(struct orinoco_private *priv, enum nl80211_auth_type auth_type){
+	switch (auth_type){
+	case NL80211_AUTHTYPE_OPEN_SYSTEM:
+		priv->wep_restrict = 0;
+		break;
+	case NL80211_AUTHTYPE_SHARED_KEY:
+		priv->wep_restrict = 1;
+		break;
+	case NL80211_AUTHTYPE_AUTOMATIC:
+		/* set to Shared key but that needs to change. */
+		/* can be open or shared so? */
+		/* change the way wep_restrict is handled */
+		priv->wep_restrict = 1;
+		break;
+
+	default:
+		printk("Authentication method %d is not supported\n", auth_type);
+		return -ENOTSUPP;
+	}
+
+	return 0;
+}
+
 static int orinoco_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 				   struct cfg80211_connect_params *sme)
 {
 	struct orinoco_private *priv = wiphy_priv(wiphy);
 	struct cfg80211_bss *bss;
-
+	int ret = 0;
 	/*test if card is trying to connect or already connected. If so
 	 *return error code. orinoco_private supports that?
 	 * Need to check and modify struct accordingly.
@@ -303,7 +342,7 @@ static int orinoco_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 	/* If we don't have a valid ssid, we shouldn't connect! */
 	if (!sme->ssid){
 		printk(KERN_ERR "Invalid ssid\n");
-		return -EOPNOTSUPP;
+		return -EPERM;
 	}
 
 	if (sme->bssid && is_zero_ether_addr(sme->bssid)){
@@ -311,22 +350,32 @@ static int orinoco_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 		return -EINVAL;
 	}
 
+	/* need to check if the card is already connected
+	 * and reconnect
+	 */
+	/* code for reconnection to be added */
+	priv->sme_state = SME_CONNECTING;
+
 	memset(priv->ssid, 0, sizeof(priv->ssid));
 	priv->ssid_len = sme->ssid_len;
 	memcpy(priv->ssid, sme->ssid, sme->ssid_len);
 
-	memset(priv->desired_bssid, 0, sizeof(priv->desired_bssid));
+	eth_zero_addr(priv->desired_bssid);
 	if (sme->bssid && !is_broadcast_ether_addr(sme->bssid))
-		memcpy(priv->desired_bssid, sme->bssid, sizeof(priv->desired_bssid));
+		ether_addr_copy(priv->desired_bssid, sme->bssid);
 
 
 
+	/* set authentication */
+	ret = orinoco_set_wpa_version(priv, sme->crypto.wpa_versions);
 	/* need to set the authenticatin type
 	 * What are the supported authentication
 	 * methods by Orinoco?
 	 */
-
-	return 0;
+	ret = orinoco_set_authentication(priv, sme->auth_type);
+	if (ret)
+		return ret;
+	return ret;
 }
 
 const struct cfg80211_ops orinoco_cfg_ops = {
