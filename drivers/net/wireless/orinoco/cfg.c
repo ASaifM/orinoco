@@ -368,6 +368,8 @@ static int orinoco_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 
 	/* set authentication */
 	ret = orinoco_set_wpa_version(priv, sme->crypto.wpa_versions);
+	if (ret)
+		return ret;
 	/* need to set the authenticatin type
 	 * What are the supported authentication
 	 * methods by Orinoco?
@@ -378,9 +380,25 @@ static int orinoco_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 	return ret;
 }
 
+static int orinoco_cfg80211_disconnect(struct wiphy *wiphy,
+				      struct net_device *dev, u16 reason_code)
+{
+	struct orinoco_private *priv = wiphy_priv(wiphy);
+	int ret = 0;
+
+	memset(priv->ssid, 0, sizeof(priv->ssid));
+	priv->ssid_len = 0;
+
+	eth_zero_addr(priv->desired_bssid);
+	priv->sme_state = SME_DISCONNECTED;
+
+	return ret;
+}
+
 const struct cfg80211_ops orinoco_cfg_ops = {
 	.change_virtual_intf = orinoco_change_vif,
 	.connect = orinoco_cfg80211_connect,
+	.disconnect = orinoco_cfg80211_disconnect,
 	.set_monitor_channel = orinoco_set_monitor_channel,
 	.scan = orinoco_scan,
 	.set_wiphy_params = orinoco_set_wiphy_params,
