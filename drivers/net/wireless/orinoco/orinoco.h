@@ -70,6 +70,7 @@ struct orinoco_private {
 	struct ieee80211_supported_band band;
 	struct ieee80211_channel channels[14];
 	u32 cipher_suites[3];
+	u16 ch_hint;
 
 	/* Synchronisation stuff */
 	spinlock_t lock;

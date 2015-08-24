@@ -360,6 +360,9 @@ static int orinoco_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 	priv->ssid_len = sme->ssid_len;
 	memcpy(priv->ssid, sme->ssid, sme->ssid_len);
 
+	if (sme->channel)
+		priv->ch_hint = sme->channel->center_freq;
+
 	eth_zero_addr(priv->desired_bssid);
 	if (sme->bssid && !is_broadcast_ether_addr(sme->bssid))
 		ether_addr_copy(priv->desired_bssid, sme->bssid);
@@ -369,14 +372,18 @@ static int orinoco_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 	/* set authentication */
 	ret = orinoco_set_wpa_version(priv, sme->crypto.wpa_versions);
 	if (ret)
-		return ret;
+		goto out;
 	/* need to set the authenticatin type
 	 * What are the supported authentication
 	 * methods by Orinoco?
 	 */
 	ret = orinoco_set_authentication(priv, sme->auth_type);
 	if (ret)
-		return ret;
+		goto out;
+
+	return ret;
+
+out:
 	return ret;
 }
 
@@ -395,10 +402,38 @@ static int orinoco_cfg80211_disconnect(struct wiphy *wiphy,
 	return ret;
 }
 
+static int orinoco_cfg80211_join_ibss(struct wiphy *wiphy,
+				     struct net_device *dev,
+				     struct cfg80211_ibss_params *ibss_param)
+{
+	struct orinoco_private *priv = wiphy_priv(wiphy);
+	int ret = 0;
+
+	priv->ssid_len = ibss_param->ssid_len;
+	memcpy(priv->ssid, ibss_param->ssid, priv->ssid_len);
+
+	return ret;
+}
+
+static int orinoco_cfg80211_leave_ibss(struct wiphy *wiphy,
+				      struct net_device *dev)
+{
+	struct orinoco_private *priv = wiphy_priv(wiphy);
+	int ret = 0;
+
+	memset(priv->ssid, 0, sizeof(priv->ssid));
+	priv->ssid_len = 0;
+	eth_zero_addr(priv->desired_bssid);
+
+	return ret;
+}
+
 const struct cfg80211_ops orinoco_cfg_ops = {
 	.change_virtual_intf = orinoco_change_vif,
 	.connect = orinoco_cfg80211_connect,
 	.disconnect = orinoco_cfg80211_disconnect,
+	.join_ibss = orinoco_cfg80211_join_ibss,
+	.leave_ibss = orinoco_cfg80211_leave_ibss,
 	.set_monitor_channel = orinoco_set_monitor_channel,
 	.scan = orinoco_scan,
 	.set_wiphy_params = orinoco_set_wiphy_params,
