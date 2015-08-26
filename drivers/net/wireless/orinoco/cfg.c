@@ -292,7 +292,7 @@ static int orinoco_set_wpa_version(struct orinoco_private *priv, enum nl80211_wp
 	} else if (wpa_version & NL80211_WPA_VERSION_1) {
 		priv->encode_alg = ORINOCO_ALG_TKIP;
 	} else {
-		printk(KERN_ERR "Orinoco supports TKIP only. \n");
+		netdev_err(priv->ndev, "Orinoco supports TKIP only. \n");
 		return -ENOTSUPP;
 	}
 
@@ -301,6 +301,7 @@ static int orinoco_set_wpa_version(struct orinoco_private *priv, enum nl80211_wp
 
 
 static int orinoco_set_authentication(struct orinoco_private *priv, enum nl80211_auth_type auth_type){
+
 	switch (auth_type){
 	case NL80211_AUTHTYPE_OPEN_SYSTEM:
 		priv->wep_restrict = 0;
@@ -333,20 +334,21 @@ static int orinoco_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 	 *return error code. orinoco_private supports that?
 	 * Need to check and modify struct accordingly.
          */
+	printk(KERN_WARNING "In orinoco cfg80211 connect \n");
 	if (priv->sme_state == SME_CONNECTING || priv->sme_state == SME_CONNECTED){
-		printk(KERN_ERR "Card already established a connection or trying to! \n");
+		netdev_err(dev, "Card already established a connection or trying to! \n");
 		return -EBUSY;
 	}
 	/*New note: orinoco_private needs to change drastically! */
 
 	/* If we don't have a valid ssid, we shouldn't connect! */
 	if (!sme->ssid){
-		printk(KERN_ERR "Invalid ssid\n");
+		netdev_err(dev, "Invalid ssid\n");
 		return -EPERM;
 	}
 
 	if (sme->bssid && is_zero_ether_addr(sme->bssid)){
-		printk(KERN_ERR "Zero address bssid! \n");
+		netdev_err(dev, "Zero address bssid! \n");
 		return -EINVAL;
 	}
 
@@ -380,7 +382,11 @@ static int orinoco_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 	ret = orinoco_set_authentication(priv, sme->auth_type);
 	if (ret)
 		goto out;
-
+	ret = orinoco_commit(priv);
+	if (ret)
+		cfg80211_connect_result(dev, priv->desired_bssid, NULL, 0, NULL, 0, WLAN_STATUS_UNSPECIFIED_FAILURE, GFP_KERNEL);
+	else
+		cfg80211_connect_result(dev, priv->desired_bssid, NULL, 0, NULL, 0, 0, GFP_KERNEL);
 	return ret;
 
 out:
@@ -406,11 +412,18 @@ static int orinoco_cfg80211_join_ibss(struct wiphy *wiphy,
 				     struct net_device *dev,
 				     struct cfg80211_ibss_params *ibss_param)
 {
+
 	struct orinoco_private *priv = wiphy_priv(wiphy);
 	int ret = 0;
 
+	if (!priv->has_ibss){
+		netdev_err(dev, "ibss not supported! \n");
+		return -ENOTSUPP;
+	}
 	priv->ssid_len = ibss_param->ssid_len;
 	memcpy(priv->ssid, ibss_param->ssid, priv->ssid_len);
+
+	ret = orinoco_commit(priv);
 
 	return ret;
 }
