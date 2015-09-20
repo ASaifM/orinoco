@@ -317,7 +317,7 @@ static int orinoco_set_authentication(struct orinoco_private *priv, enum nl80211
 		break;
 
 	default:
-		printk("Authentication method %d is not supported\n", auth_type);
+		printk(KERN_ERR "Authentication method %d is not supported\n", auth_type);
 		return -ENOTSUPP;
 	}
 
@@ -328,13 +328,16 @@ static int orinoco_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 				   struct cfg80211_connect_params *sme)
 {
 	struct orinoco_private *priv = wiphy_priv(wiphy);
-	struct cfg80211_bss *bss;
+	unsigned long flags = 0;
 	int ret = 0;
 	/*test if card is trying to connect or already connected. If so
 	 *return error code. orinoco_private supports that?
 	 * Need to check and modify struct accordingly.
          */
 	printk(KERN_WARNING "In orinoco cfg80211 connect \n");
+	if (orinoco_lock(priv, &flags) != 0)
+		return -EBUSY;
+
 	if (priv->sme_state == SME_CONNECTING || priv->sme_state == SME_CONNECTED){
 		netdev_err(dev, "Card already established a connection or trying to! \n");
 		return -EBUSY;
@@ -358,18 +361,27 @@ static int orinoco_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 	/* code for reconnection to be added */
 	priv->sme_state = SME_CONNECTING;
 
+	if (sme->channel){
+		int channel;
+
+		channel = ieee80211_frequency_to_channel(sme->channel->center_freq);
+
+		if ((channel > 0) && (channel < NUM_CHANNELS) &&
+		    (priv->channel_mask & (1 << channel)))
+			priv->channel = channel;
+		priv->ch_hint = sme->channel->center_freq;
+	}
+
 	memset(priv->ssid, 0, sizeof(priv->ssid));
 	priv->ssid_len = sme->ssid_len;
 	memcpy(priv->ssid, sme->ssid, sme->ssid_len);
 
-	if (sme->channel)
-		priv->ch_hint = sme->channel->center_freq;
-
 	eth_zero_addr(priv->desired_bssid);
-	if (sme->bssid && !is_broadcast_ether_addr(sme->bssid))
+	priv->bssid_fixed = 0;
+	if (sme->bssid && !is_broadcast_ether_addr(sme->bssid)){
 		ether_addr_copy(priv->desired_bssid, sme->bssid);
-
-
+		priv->bssid_fixed = 1;
+	}
 
 	/* set authentication */
 	ret = orinoco_set_wpa_version(priv, sme->crypto.wpa_versions);
@@ -382,14 +394,24 @@ static int orinoco_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 	ret = orinoco_set_authentication(priv, sme->auth_type);
 	if (ret)
 		goto out;
+	orinoco_unlock(priv, &flags);
+	schedule_work(&priv->join_work);
+	/*if (orinoco_lock(priv, &flags) != 0)
+		return -EBUSY; */
 	ret = orinoco_commit(priv);
-	if (ret)
+	if (ret) {
+		printk(KERN_ERR "We failed to connect \n");
 		cfg80211_connect_result(dev, priv->desired_bssid, NULL, 0, NULL, 0, WLAN_STATUS_UNSPECIFIED_FAILURE, GFP_KERNEL);
-	else
-		cfg80211_connect_result(dev, priv->desired_bssid, NULL, 0, NULL, 0, 0, GFP_KERNEL);
+	}
+	else {
+		printk(KERN_ERR "Connection seems to have succeeded \n");
+		cfg80211_connect_result(dev, priv->desired_bssid, NULL, 0, NULL, 0, WLAN_STATUS_SUCCESS, GFP_KERNEL);
+	}
+	/* orinoco_unlock(priv, &flags); */
 	return ret;
 
 out:
+	orinoco_unlock(priv, &flags);
 	return ret;
 }
 
@@ -414,16 +436,30 @@ static int orinoco_cfg80211_join_ibss(struct wiphy *wiphy,
 {
 
 	struct orinoco_private *priv = wiphy_priv(wiphy);
+	unsigned long flags = 0;
 	int ret = 0;
+
+	if (orinoco_lock(priv, &flags) != 0)
+		return -EBUSY;
 
 	if (!priv->has_ibss){
 		netdev_err(dev, "ibss not supported! \n");
 		return -ENOTSUPP;
 	}
+
+	memset(priv->ssid, 0, sizeof(priv->ssid));
 	priv->ssid_len = ibss_param->ssid_len;
-	memcpy(priv->ssid, ibss_param->ssid, priv->ssid_len);
+	memcpy(priv->ssid, ibss_param->ssid, ibss_param->ssid_len);
+
+	eth_zero_addr(priv->desired_bssid);
+	priv->bssid_fixed = 0;
+	if (ibss_param->bssid && !is_broadcast_ether_addr(ibss_param->bssid)){
+		ether_addr_copy(priv->desired_bssid, ibss_param->bssid);
+		priv->bssid_fixed = 1;
+	}
 
 	ret = orinoco_commit(priv);
+	orinoco_unlock(priv, &flags);
 
 	return ret;
 }
@@ -437,6 +473,8 @@ static int orinoco_cfg80211_leave_ibss(struct wiphy *wiphy,
 	memset(priv->ssid, 0, sizeof(priv->ssid));
 	priv->ssid_len = 0;
 	eth_zero_addr(priv->desired_bssid);
+
+
 
 	return ret;
 }

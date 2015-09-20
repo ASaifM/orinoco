@@ -240,6 +240,7 @@ void cfg80211_conn_work(struct work_struct *work)
 			bssid = bssid_buf;
 		}
 		if (cfg80211_conn_do_work(wdev)) {
+			printk(KERN_ERR "__cfg80211_connect_result called from cfg80211_conn_work with failure status. \n");
 			__cfg80211_connect_result(
 					wdev->netdev, bssid,
 					NULL, 0, NULL, 0,
@@ -347,6 +348,7 @@ void cfg80211_sme_rx_auth(struct wireless_dev *wdev, const u8 *buf, size_t len)
 		wdev->conn->state = CFG80211_CONN_AUTHENTICATE_NEXT;
 		schedule_work(&rdev->conn_work);
 	} else if (status_code != WLAN_STATUS_SUCCESS) {
+		printk(KERN_ERR "Authentication failed and cfg80211_sme_rx_auth called __cfg80211_connect_result \n");
 		__cfg80211_connect_result(wdev->netdev, mgmt->bssid,
 					  NULL, 0, NULL, 0,
 					  status_code, false, NULL);
@@ -774,6 +776,7 @@ void cfg80211_connect_result(struct net_device *dev, const u8 *bssid,
 	list_add_tail(&ev->list, &wdev->event_list);
 	spin_unlock_irqrestore(&wdev->event_lock, flags);
 	queue_work(cfg80211_wq, &rdev->event_work);
+	printk(KERN_WARNING "reached the end of the function \n");
 }
 EXPORT_SYMBOL(cfg80211_connect_result);
 

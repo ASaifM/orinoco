@@ -1116,6 +1116,7 @@ static void print_linkstatus(struct net_device *dev, u16 status)
 /* Search scan results for requested BSSID, join it if found */
 static void orinoco_join_ap(struct work_struct *work)
 {
+	printk(KERN_WARNING "Inside orinoco_join_ap \n");
 	struct orinoco_private *priv =
 		container_of(work, struct orinoco_private, join_work);
 	struct net_device *dev = priv->ndev;
@@ -1145,8 +1146,8 @@ static void orinoco_join_ap(struct work_struct *work)
 	if (!priv->bssid_fixed)
 		goto out;
 
-	if (strlen(priv->desired_essid) == 0)
-		goto out;
+	/*if (strlen(priv->desired_essid) == 0)
+		goto out;*/
 
 	/* Read scan results from the firmware */
 	err = hw->ops->read_ltv(hw, USER_BAP,
@@ -1171,7 +1172,7 @@ static void orinoco_join_ap(struct work_struct *work)
 	}
 
 	if (!found) {
-		DEBUG(1, "%s: Requested AP not found in scan results\n",
+		printk(KERN_ERR "%s: Requested AP not found in scan results\n",
 		      dev->name);
 		goto out;
 	}
@@ -1180,13 +1181,16 @@ static void orinoco_join_ap(struct work_struct *work)
 	req.channel = atom->channel;	/* both are little-endian */
 	err = HERMES_WRITE_RECORD(hw, USER_BAP, HERMES_RID_CNFJOINREQUEST,
 				  &req);
+	printk(KERN_WARNING "Done with calling HERMES_WRITE_RECORD \n");
 	if (err)
 		printk(KERN_ERR "%s: Error issuing join request\n", dev->name);
 
  out:
+	printk(KERN_ERR "join_ap was not able to do its work \n");
 	orinoco_unlock(priv, &flags);
 
  fail_lock:
+	printk(KERN_ERR "join_ap was not able to lock \n");
 	kfree(buf);
 }
 
