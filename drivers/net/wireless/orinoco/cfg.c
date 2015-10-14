@@ -396,8 +396,8 @@ static int orinoco_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 		goto out;
 	orinoco_unlock(priv, &flags);
 	schedule_work(&priv->join_work);
-	/*if (orinoco_lock(priv, &flags) != 0)
-		return -EBUSY; */
+	if (orinoco_lock(priv, &flags) != 0)
+		return -EBUSY;
 	ret = orinoco_commit(priv);
 	if (ret) {
 		printk(KERN_ERR "We failed to connect \n");
@@ -407,7 +407,7 @@ static int orinoco_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 		printk(KERN_ERR "Connection seems to have succeeded \n");
 		cfg80211_connect_result(dev, priv->desired_bssid, NULL, 0, NULL, 0, WLAN_STATUS_SUCCESS, GFP_KERNEL);
 	}
-	/* orinoco_unlock(priv, &flags); */
+	orinoco_unlock(priv, &flags);
 	return ret;
 
 out:
